@@ -75,17 +75,20 @@ func (s *moveSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt abi.
 	var ok, pref bool
 	requested := s.alloc
 
-	for _, info := range best {
-		if n, has := workerPaths[info.ID]; has {
-			ok = true
+	for _, n := range workerPaths {
+		// if the worker has a local path with the sector already in it
+		// prefer that worker; This usually meant that the move operation is
+		// either a no-op because the sector is already in the correct path,
+		// or the move a local move.
+		if n > 0 {
+			pref = true
+			break
+		}
+	}
 
-			// if the worker has a local path with the sector already in it
-			// prefer that worker; This usually meant that the move operation is
-			// either a no-op because the sector is already in the correct path,
-			// or the move a local move.
-			if n > 0 {
-				pref = true
-			}
+	for _, info := range best {
+		if _, has := workerPaths[info.ID]; has {
+			ok = true
 
 			requested = requested.SubAllowed(info.AllowTypes, info.DenyTypes)
 
@@ -96,7 +99,7 @@ func (s *moveSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt abi.
 		}
 	}
 
-	return (ok && s.allowRemote) || pref, pref, nil
+	return ok && (s.allowRemote || pref), pref, nil
 }
 
 func (s *moveSelector) Cmp(ctx context.Context, task sealtasks.TaskType, a, b SchedWorker) (bool, error) {
